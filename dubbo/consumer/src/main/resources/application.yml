@@ -10,3 +10,4 @@ dubbo:
     address: zookeeper://127.0.0.1:2181
   application:
     qos-port: 33333
+    name: dubbo-springboot-demo-provider
