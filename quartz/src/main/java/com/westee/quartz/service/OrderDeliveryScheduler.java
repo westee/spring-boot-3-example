@@ -7,6 +7,7 @@ import org.quartz.JobKey;
 import org.quartz.Scheduler;
 import org.quartz.SchedulerException;
 import org.quartz.Trigger;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
@@ -15,6 +16,7 @@ import java.util.Date;
 public class OrderDeliveryScheduler {
     private final Scheduler scheduler;
 
+    @Autowired
     public OrderDeliveryScheduler(Scheduler scheduler) {
         this.scheduler = scheduler;
     }
