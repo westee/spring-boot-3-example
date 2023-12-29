@@ -1,0 +1,14 @@
+spring:
+  application:
+        name: redis
+  cache:
+    type: redis
+    redis:
+      time-to-live: 60s
+
+  data:
+    redis:
+      database: 0
+      host: localhost
+      port: 6379
+      password: 123456
