@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Websocket</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        #chat-container {
+            width: 80%;
+            margin: 0 auto;
+            display: flex;
+        }
+
+        #chat-history {
+            height: 300px;
+            overflow-y: scroll;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+
+        .chat-area {
+            width: 80%;
+            margin-right: 20px;
+        }
+
+        #username {
+            font-weight: bold;
+            width: 80%;
+            margin: 0 auto 10px;
+        }
+
+        .user-list-wrapper {
+            width: 20%;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+
+        #chat-input {
+            display: flex;
+            flex-direction: column;
+            margin-top: 10px;
+        }
+
+        #message-input {
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            margin-bottom: 10px;
+        }
+
+        #send-button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+<div id="username"></div>
+<div id="chat-container">
+    <section class="chat-area">
+        <div id="chat-history">
+
+        </div>
+        <div id="chat-input">
+            <input type="text" id="message-input" placeholder="输入你的消息...">
+            <button id="send-button">发送</button>
+        </div>
+    </section>
+    <section class="user-list-wrapper">
+        <div>用户列表</div>
+        <ul id="user-list">
+
+        </ul>
+    </section>
+</div>
+</body>
+<script src='./WebSocketObserver.js'></script>
+<script type='text/javascript'>
+    // 消息类型
+    const messageType = {
+        LOGIN: 'login',
+        LOGOUT: 'logout',
+        MESSAGE: 'message',
+        USER_LIST: 'userList'
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        let socket = new WebSocket('ws://localhost:1024/channel');
+        const chatHistory = document.getElementById('chat-history');
+        const usernameDom = document.getElementById('username');
+        const userListDom = document.getElementById('user-list');
+        const chatInput = document.getElementById('message-input');
+        const send-button = document.getElementById('send-button');
+
+        let userList = []; // 用户列表
+        let currentUser;   // 当前用户名
+
+        const observer = new WebSocketObserver(socket);
+
+        const onLogin = (messageData) => {
+            if (!userList.includes(messageData.username)) {
+                userList.push(messageData.username);
+            }
+            createUserListOnHtml()
+        }
+        observer.subscribe(messageType.LOGIN, onLogin);
+
+        const removeUserFromList = (username) => {
+            userList = userList.filter(item => item !== username);
+            createUserListOnHtml()
+        }
+        const onLogout = (messageData) => {
+            removeUserFromList(messageData.username);
+        }
+        observer.subscribe(messageType.LOGOUT, onLogout);
+
+        const onMessage = (messageData) => {
+            createMessageOnHtml(messageData)
+        }
+        observer.subscribe(messageType.MESSAGE, onMessage);
+
+        const onUserList = (messageData) => {
+            reCreateUserFromList(messageData.message);
+        }
+        observer.subscribe(messageType.USER_LIST, onUserList);
+
+        const reCreateUserFromList = (newUserList) => {
+            userList = newUserList
+            createUserListOnHtml()
+        }
+
+        socket.onclose = e => {
+            let {code, reason} = e;
+            console.log(`链接断开:code=${code}, reason=${reason}`);
+        }
+        socket.onopen = () => {
+            console.log('链接建立...');
+            getCurrentUserFromLocalStorage()
+        }
+        socket.onerror = e => {
+            // reconnect...
+            console.log('链接异常:', e);
+        }
+
+        send-button.onclick = () => {
+            let message = chatInput.value;
+            socket.send(formatMessage(messageType.MESSAGE, message));
+        };
+
+        const createMessageOnHtml = (messageData) => {
+            chatHistory.innerHTML += '<p>' + messageData.username + '说：' + messageData.message + '</p>';
+            chatInput.value = ''; // 清空输入框，准备下一次输入
+        }
+
+        const createUserListOnHtml = () => {
+            userListDom.innerHTML = '';
+            for (let i = 0; i < userList.length; i++) {
+                let user = userList[i];
+                let welcomeMessage = document.createElement('li');
+                welcomeMessage.textContent = user;
+                userListDom.appendChild(welcomeMessage);
+            }
+        }
+
+        const formatMessage = (type, message) => {
+            return JSON.stringify({
+                type, message, username: currentUser
+            })
+        }
+
+        const getCurrentUserFromLocalStorage = () => {
+            currentUser = localStorage.getItem('currentUser');
+
+            if (!currentUser) {
+                // 如果 localStorage 中没有 currentUser，提示用户输入用户名
+                const userName = prompt('请输入你的用户名');
+
+                if (userName) {
+                    // 如果用户输入了用户名，将其存储到 localStorage 中
+                    localStorage.setItem('currentUser', userName);
+                    setCurrentUserOnHtml(currentUser)
+                } else {
+                    // 如果用户取消了输入，显示一个 alert 提示
+                    alert('用户名不能为空');
+                }
+            } else {
+                // 如果 localStorage 中有 currentUser，直接使用该用户名
+                setCurrentUserOnHtml(currentUser)
+            }
+        }
+
+        const setCurrentUserOnHtml = (userName) => {
+            usernameDom.innerText = '欢迎您：' + userName;
+            // 发送登录消息到服务器
+            socket.send(formatMessage(messageType.LOGIN, userName));
+        }
+
+        window.onunload = () => {
+            socket.close();
+            observer.unsubscribe('login', onLogin);
+            observer.unsubscribe('logout', onLogout);
+            observer.unsubscribe('message', onMessage);
+            observer.unsubscribe('userList', onUserList);
+        }
+    });
+</script>
+</html>
